@@ -9,10 +9,7 @@ class _AppButton extends StatefulWidget {
   const _AppButton(
       {Key? key,
       required this.onTap,
-      required this.buttonText,
-      this.isLoading = false,
-      this.isPrimary = true,
-      this.isActive = true})
+      required this.buttonText, required this.isLoading, required this.isPrimary, required this.isActive})
       : super(key: key);
 
   @override
@@ -39,7 +36,7 @@ class _AppButtonState extends State<_AppButton> {
             color: widget.isActive
                 ? widget.isPrimary
                     ? Theme.of(context).primaryColor
-                    : themeData.colorScheme.background
+                    : themeData.colorScheme.surface
                 : Colors.grey,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -63,10 +60,7 @@ class _AppTextButton extends StatefulWidget {
   const _AppTextButton(
       {Key? key,
       required this.onTap,
-      required this.buttonText,
-      this.isLoading = false,
-      this.isPrimary = true,
-      this.isActive = true})
+      required this.buttonText, required this.isLoading, required this.isPrimary, required this.isActive})
       : super(key: key);
 
   @override

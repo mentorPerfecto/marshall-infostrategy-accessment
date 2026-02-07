@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_assessment/modules/home/presentation/home_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'common/navigation/app_router.dart';
+import 'common/theme/app_theme.dart';
 
-class MobileAssessmentApp extends StatefulWidget {
+class MobileAssessmentApp extends StatelessWidget {
   final bool isDebug;
   const MobileAssessmentApp({Key? key, this.isDebug = true}) : super(key: key);
 
   @override
-  State<MobileAssessmentApp> createState() => _MobileAssessmentAppState();
-}
-
-class _MobileAssessmentAppState extends State<MobileAssessmentApp> {
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: widget.isDebug,
-      home: const HomeScreen(),
+    return ProviderScope(
+      child: ScreenUtilInit(
+        designSize: const Size(375, 812), // iPhone X dimensions
+        minTextAdapt: true,
+        splitScreenMode: true,
+        builder: (context, child) {
+          return MaterialApp.router(
+            debugShowCheckedModeBanner: isDebug,
+            title: 'Employee Management',
+            theme: AppTheme.lightTheme(),
+            darkTheme: AppTheme.darkTheme(),
+            themeMode: ThemeMode.system, // Adaptive theme based on system setting
+            routerConfig: AppRouter.router,
+          );
+        },
+      ),
     );
   }
 }
