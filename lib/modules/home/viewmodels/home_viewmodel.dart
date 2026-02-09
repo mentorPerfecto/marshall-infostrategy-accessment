@@ -184,12 +184,8 @@ class HomeViewModel extends StateNotifier<HomeViewState> {
           errorMessage: null,
         );
 
-        // Optionally sync with API in background (but don't update state to avoid overwriting local changes)
-        try {
-          await _repository.fetchAndSaveEmployees();
-        } catch (_) {
-          // Ignore API errors during refresh - we already have data
-        }
+      // Note: We don't sync with API during refresh to preserve local changes
+      // API sync only happens on initial load
         return;
       }
 

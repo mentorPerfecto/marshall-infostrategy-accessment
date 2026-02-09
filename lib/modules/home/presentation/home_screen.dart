@@ -1,21 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'dart:async';
 import '../viewmodels/home_viewmodel.dart';
 import '../../widgets/employee_card.dart';
 import '../../widgets/filter_widget.dart';
 import '../../widgets/loading_error_widgets.dart' as custom_widgets;
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  DateTime? _lastRefreshTime;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Refresh data if it's been more than 2 seconds since last refresh
+    // This handles the case where we return from details screen
+    final now = DateTime.now();
+    if (_lastRefreshTime == null || now.difference(_lastRefreshTime!).inSeconds > 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final viewModel = ref.read(homeViewModelProvider.notifier);
+        final currentState = ref.read(homeViewModelProvider);
+        if (currentState.state == HomeState.loaded && currentState.employees.isNotEmpty) {
+          _lastRefreshTime = now;
+          viewModel.refresh();
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final viewState = ref.watch(homeViewModelProvider);
     final employees = ref.watch(employeesProvider);
     final hasError = ref.watch(hasErrorProvider);
     final errorMessage = ref.watch(errorMessageProvider);
     final viewModel = ref.read(homeViewModelProvider.notifier);
+
 
 
     return Scaffold(
@@ -163,7 +191,10 @@ class HomeScreen extends ConsumerWidget {
         itemCount: employees.length,
         itemBuilder: (context, index) {
           final employee = employees[index];
-          return EmployeeCard(employee: employee);
+          return EmployeeCard(
+            key: ValueKey('${employee.id}_${employee.level}_${employee.currentSalary}'),
+            employee: employee,
+          );
         },
       ),
     );

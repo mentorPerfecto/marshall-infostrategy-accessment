@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import '../viewmodels/details_viewmodel.dart';
+import '../../../modules/home/viewmodels/home_viewmodel.dart';
 import '../../widgets/productivity_indicator.dart';
 import '../../widgets/employee_card.dart';
 import '../../widgets/loading_error_widgets.dart' as custom_widgets;
@@ -600,6 +601,7 @@ class DetailsScreen extends ConsumerWidget {
       (Match m) => '${m[1]},',
     );
   }
+
 
   Widget _buildCriteriaRow(BuildContext context, String range, String outcome) {
     return Padding(
