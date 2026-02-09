@@ -385,7 +385,7 @@ void main() {
               final repository = ref.watch(employeeRepositoryProvider);
               final viewModel = DetailsViewModel(repository, 1);
               // Simulate loaded state
-              viewModel.state = DetailsState.loaded;
+              viewModel.state = DetailsState.loaded as DetailsViewState;
               return viewModel;
             }),
             employeeProvider(1).overrideWithValue(testEmployee),

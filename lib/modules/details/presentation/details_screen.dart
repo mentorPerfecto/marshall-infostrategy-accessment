@@ -18,11 +18,11 @@ class DetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final detailsState = ref.watch(detailsViewModelProvider(employeeId));
+    final viewState = ref.watch(detailsViewModelProvider(employeeId));
     final employee = ref.watch(employeeProvider(employeeId));
     final hasError = ref.watch(detailsHasErrorProvider(employeeId));
     final errorMessage = ref.watch(detailsErrorMessageProvider(employeeId));
-    final viewModel = ref.read(detailsViewModelProvider(employeeId).notifier);
+    final viewModel = ref.watch(detailsViewModelNotifierProvider(employeeId));
 
     return Scaffold(
       appBar: AppBar(
@@ -30,15 +30,18 @@ class DetailsScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
+          onPressed: () {
+            // Refresh home screen data when returning
+            context.go('/');
+          },
         ),
       ),
-      body: _buildBody(detailsState, employee, hasError, errorMessage, viewModel),
+      body: _buildBody(viewState, employee, hasError, errorMessage, viewModel),
     );
   }
 
   Widget _buildBody(
-    DetailsState detailsState,
+    DetailsViewState viewState,
     Employee? employee,
     bool hasError,
     String? errorMessage,
@@ -52,7 +55,7 @@ class DetailsScreen extends ConsumerWidget {
       );
     }
 
-    if (detailsState == DetailsState.loading) {
+    if (viewState.state == DetailsState.loading) {
       return const custom_widgets.LoadingWidget(message: 'Loading employee details...');
     }
 
@@ -91,6 +94,11 @@ class DetailsScreen extends ConsumerWidget {
 
             // Employment Status Section
             _buildEmploymentStatusSection(context, employee),
+
+            SizedBox(height: 24.h),
+
+            // Level Management Section
+            _buildLevelManagementSection(context, employee, viewModel),
           ],
         ),
       ),
@@ -328,6 +336,268 @@ class DetailsScreen extends ConsumerWidget {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildLevelManagementSection(BuildContext context, Employee employee, DetailsViewModel viewModel) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Level Management',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: 16.h),
+
+        Container(
+          padding: EdgeInsets.all(16.w),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Current Level & Salary',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 12.h),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Level ${employee.level}',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 4.h),
+                      Text(
+                        'Salary: ₦${_formatSalary(employee.salaryAmount)}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Level selector dropdown
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8.r),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: DropdownButton<int>(
+                      value: employee.level,
+                      onChanged: (int? newLevel) async {
+                        if (newLevel != null && newLevel != employee.level) {
+                          final confirmed = await _showLevelUpdateConfirmation(context, employee.level, newLevel);
+                          if (confirmed == true) {
+                            await viewModel.updateEmployeeLevel(newLevel);
+                            // Show success message
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Employee level updated successfully'),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      },
+                      items: List.generate(6, (index) => index).map<DropdownMenuItem<int>>((int level) {
+                        return DropdownMenuItem<int>(
+                          value: level,
+                          child: Text(
+                            'Level $level',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        );
+                      }).toList(),
+                      underline: const SizedBox(),
+                      icon: Icon(
+                        Icons.arrow_drop_down,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: 16.h),
+
+              // Salary preview for different levels
+              Text(
+                'Salary by Level',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              SizedBox(height: 8.h),
+
+              ..._buildSalaryByLevelList(context, employee),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildSalaryByLevelList(BuildContext context, Employee employee) {
+    final salaryMap = {
+      0: 70000,
+      1: 100000,
+      2: 120000,
+      3: 180000,
+      4: 200000,
+      5: 250000,
+    };
+
+    return salaryMap.entries.map((entry) {
+      final isCurrentLevel = entry.key == employee.level;
+      return Container(
+        margin: EdgeInsets.only(bottom: 4.h),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        decoration: BoxDecoration(
+          color: isCurrentLevel
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6.r),
+          border: Border.all(
+            color: isCurrentLevel
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Level ${entry.key}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: isCurrentLevel ? FontWeight.w600 : FontWeight.normal,
+                color: isCurrentLevel
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            Text(
+              '₦${_formatSalary(entry.value)}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: isCurrentLevel ? FontWeight.w600 : FontWeight.normal,
+                color: isCurrentLevel
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  Future<bool?> _showLevelUpdateConfirmation(BuildContext context, int currentLevel, int newLevel) {
+    final currentSalary = _getSalaryForLevel(currentLevel);
+    final newSalary = _getSalaryForLevel(newLevel);
+    final salaryDifference = newSalary - currentSalary;
+
+    return showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Update Employee Level'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Change level from $currentLevel to $newLevel?'),
+              SizedBox(height: 16.h),
+              Text(
+                'Salary Impact:',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Text('Current: ₦${_formatSalary(currentSalary)}'),
+              Text(
+                'New: ₦${_formatSalary(newSalary)}',
+                style: TextStyle(
+                  color: salaryDifference >= 0 ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (salaryDifference != 0)
+                Text(
+                  '${salaryDifference >= 0 ? 'Increase' : 'Decrease'}: ₦${_formatSalary(salaryDifference.abs())}',
+                  style: TextStyle(
+                    color: salaryDifference >= 0 ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Update'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  int _getSalaryForLevel(int level) {
+    switch (level) {
+      case 0:
+        return 70000;
+      case 1:
+        return 100000;
+      case 2:
+        return 120000;
+      case 3:
+        return 180000;
+      case 4:
+        return 200000;
+      case 5:
+        return 250000;
+      default:
+        return 70000;
+    }
+  }
+
+
+  String _formatSalary(int salary) {
+    return salary.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
     );
   }
 

@@ -25,7 +25,7 @@ class EmployeeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12.r),
       ),
       child: InkWell(
-        onTap: onTap ?? () => context.go(AppConstants.employeeDetailsRoute.replaceFirst(':id', employee.id.toString())),
+        onTap: onTap ?? () => context.go('/employee/${employee.id}'),
         borderRadius: BorderRadius.circular(12.r),
         child: Padding(
           padding: EdgeInsets.all(16.w),

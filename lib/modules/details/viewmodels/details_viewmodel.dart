@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../common/models/employee.dart';
 import '../../../common/repositories/employee_repository.dart';
@@ -10,36 +11,108 @@ enum DetailsState {
   error,
 }
 
-class DetailsViewModel extends StateNotifier<DetailsState> {
+class DetailsViewState {
+  final DetailsState state;
+  final Employee? employee;
+  final String? errorMessage;
+
+  const DetailsViewState({
+    required this.state,
+    this.employee,
+    this.errorMessage,
+  });
+
+  DetailsViewState copyWith({
+    DetailsState? state,
+    Employee? employee,
+    String? errorMessage,
+  }) {
+    return DetailsViewState(
+      state: state ?? this.state,
+      employee: employee ?? this.employee,
+      errorMessage: errorMessage ?? this.errorMessage,
+    );
+  }
+}
+
+class DetailsViewModel extends StateNotifier<DetailsViewState> {
   final EmployeeRepository _repository;
   final int employeeId;
 
-  DetailsViewModel(this._repository, this.employeeId) : super(DetailsState.initial) {
+  DetailsViewModel(this._repository, this.employeeId) : super(const DetailsViewState(state: DetailsState.initial)) {
     loadEmployee();
   }
 
-  Employee? _employee;
-  String? _errorMessage;
-
   // Getters
-  Employee? get employee => _employee;
-  DetailsState get currentState => state;
-  String? get errorMessage => _errorMessage;
-  bool get hasError => state == DetailsState.error;
+  Employee? get employee => state.employee;
+  DetailsState get currentState => state.state;
+  String? get errorMessage => state.errorMessage;
+  bool get hasError => state.state == DetailsState.error;
 
   // Load employee by ID
   Future<void> loadEmployee() async {
-    state = DetailsState.loading;
+    state = state.copyWith(state: DetailsState.loading);
     try {
-      _employee = await _repository.getEmployeeById(employeeId);
-      if (_employee == null) {
+      final employee = await _repository.getEmployeeById(employeeId);
+      if (employee == null) {
         throw Exception('Employee not found');
       }
-      state = DetailsState.loaded;
-      _errorMessage = null;
+      state = DetailsViewState(
+        state: DetailsState.loaded,
+        employee: employee,
+        errorMessage: null,
+      );
     } catch (e) {
-      _errorMessage = e.toString();
-      state = DetailsState.error;
+      state = state.copyWith(
+        state: DetailsState.error,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  // Update employee level and salary
+  Future<void> updateEmployeeLevel(int newLevel) async {
+    if (state.employee == null) return;
+
+    try {
+      final updatedEmployee = state.employee!.copyWith(
+        level: newLevel,
+        currentSalary: _getSalaryForLevel(newLevel).toString(),
+      );
+
+      await _repository.updateEmployee(updatedEmployee);
+
+      // Update the state with the new employee data
+      state = DetailsViewState(
+        state: DetailsState.loaded,
+        employee: updatedEmployee,
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        state: DetailsState.error,
+        errorMessage: 'Failed to update employee level: ${e.toString()}',
+      );
+    }
+  }
+
+  // Helper method to get salary for level
+  int _getSalaryForLevel(int level) {
+    switch (level) {
+      case 0:
+        return 70000;
+      case 1:
+        return 100000;
+      case 2:
+        return 120000;
+      case 3:
+        return 180000;
+      case 4:
+        return 200000;
+      case 5:
+        return 250000;
+      default:
+        return 70000;
     }
   }
 
@@ -50,23 +123,27 @@ class DetailsViewModel extends StateNotifier<DetailsState> {
 }
 
 // Providers
-final detailsViewModelProvider = StateNotifierProvider.family<DetailsViewModel, DetailsState, int>((ref, employeeId) {
+final detailsViewModelProvider = StateNotifierProvider.family<DetailsViewModel, DetailsViewState, int>((ref, employeeId) {
   // Use the shared repository provider
   final repository = ref.watch(employeeRepositoryProvider);
   return DetailsViewModel(repository, employeeId);
 });
 
+final detailsViewModelNotifierProvider = Provider.family<DetailsViewModel, int>((ref, employeeId) {
+  return ref.watch(detailsViewModelProvider(employeeId).notifier);
+});
+
 final employeeProvider = Provider.family<Employee?, int>((ref, employeeId) {
-  final viewModel = ref.watch(detailsViewModelProvider(employeeId).notifier);
-  return viewModel.employee;
+  final viewState = ref.watch(detailsViewModelProvider(employeeId));
+  return viewState.employee;
 });
 
 final detailsErrorMessageProvider = Provider.family<String?, int>((ref, employeeId) {
-  final viewModel = ref.watch(detailsViewModelProvider(employeeId).notifier);
-  return viewModel.errorMessage;
+  final viewState = ref.watch(detailsViewModelProvider(employeeId));
+  return viewState.errorMessage;
 });
 
 final detailsHasErrorProvider = Provider.family<bool, int>((ref, employeeId) {
-  final viewModel = ref.watch(detailsViewModelProvider(employeeId).notifier);
-  return viewModel.hasError;
+  final viewState = ref.watch(detailsViewModelProvider(employeeId));
+  return viewState.state == DetailsState.error;
 });
