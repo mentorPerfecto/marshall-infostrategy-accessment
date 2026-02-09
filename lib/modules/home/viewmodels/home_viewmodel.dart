@@ -169,9 +169,43 @@ class HomeViewModel extends StateNotifier<HomeViewState> {
   }
 
 
-  // Refresh data
+  // Refresh data - prioritize database data (which contains our updates)
   Future<void> refresh() async {
-    await loadEmployees();
+    state = state.copyWith(state: HomeState.loading);
+    try {
+      // First try to load from database (which has our local updates)
+      final dbEmployees = await _repository.getAllEmployees();
+      if (dbEmployees.isNotEmpty) {
+        final filteredEmployees = _applyFilters(dbEmployees, _searchQuery, _designationFilter, _levelFilter);
+        state = HomeViewState(
+          state: HomeState.loaded,
+          employees: dbEmployees,
+          filteredEmployees: filteredEmployees,
+          errorMessage: null,
+        );
+
+        // Optionally sync with API in background (but don't update state to avoid overwriting local changes)
+        try {
+          await _repository.fetchAndSaveEmployees();
+        } catch (_) {
+          // Ignore API errors during refresh - we already have data
+        }
+        return;
+      }
+
+      // If no database data, load from API
+      await loadEmployees();
+    } catch (e) {
+      // If database fails, try API
+      try {
+        await loadEmployees();
+      } catch (apiError) {
+        state = state.copyWith(
+          state: HomeState.error,
+          errorMessage: 'Failed to refresh data: ${e.toString()}',
+        );
+      }
+    }
   }
 
   // Dispose method to clean up timers
